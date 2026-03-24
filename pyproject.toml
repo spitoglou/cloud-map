@@ -1,0 +1,41 @@
+[project]
+name = "cloud-map"
+version = "0.1.0"
+description = "Cloud server administration tool with SSH connectivity, Docker/systemd management, and service health visualization"
+readme = "README.md"
+authors = [
+    { name = "Stavros Pitoglou", email = "s.pitoglou@csl.gr" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "asyncssh>=2.20",
+    "click>=8.1",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+cloud-map = "cloud_map.cli:cli"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.9",
+    "pre-commit>=4.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.11,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

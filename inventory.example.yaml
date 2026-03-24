@@ -1,0 +1,33 @@
+# Cloud Map - Example Server Inventory
+# Copy this file to inventory.yaml and customize for your environment.
+
+cache_path: .cloud-map-cache.json
+
+servers:
+  - name: web-prod-1
+    hostname: 192.168.1.10
+    port: 22
+    username: deploy
+    key_path: ~/.ssh/id_ed25519
+    docker_enabled: true
+    systemd_services: []          # Auto-discover all services
+    systemd_exclude:              # Filter out noisy internals
+      - "systemd-*"
+      - dbus
+      - "user@*"
+
+  - name: db-prod-1
+    hostname: 192.168.1.20
+    username: admin
+    password: changeme          # Use key_path when possible
+    docker_enabled: false
+    systemd_services:           # Explicit list — only these are checked
+      - postgresql
+      - pgbouncer
+
+  - name: worker-1
+    hostname: 192.168.1.30
+    username: deploy
+    key_path: ~/.ssh/id_ed25519
+    docker_enabled: true
+    # No systemd_services or systemd_exclude = discover everything
