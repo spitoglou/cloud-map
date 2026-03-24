@@ -68,6 +68,16 @@ CLOUD_MAP_INVENTORY=/path/to/servers.yaml cloud-map status
 | degraded  | Service restarting, activating, or transitioning |
 | unknown   | Server unreachable or service state unclear      |
 
+### `cloud-map resources`
+Display system resource usage across all servers.
+
+```bash
+cloud-map resources
+cloud-map resources --pdf resources.pdf
+```
+
+Displays CPU cores, CPU usage percentage, memory (used/total/available), and disk partitions (mount, used/total) for each reachable server. Values are color-coded by usage threshold: green (<70%), yellow (70-90%), red (>90%).
+
 ## PDF Export
 
 All commands support the `--pdf <path>` option to generate a printable PDF report. The PDF includes the same data as the terminal output with formatted tables, color-coded health indicators, and a fleet summary (for the `status` command).

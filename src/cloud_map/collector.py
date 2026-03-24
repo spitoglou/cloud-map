@@ -14,6 +14,7 @@ from cloud_map.models import (
     ServiceInfo,
     ServiceType,
 )
+from cloud_map.resources import collect_resources
 from cloud_map.ssh import SSHManager
 from cloud_map.systemd import SystemdNotAvailableError, list_services
 
@@ -78,11 +79,15 @@ async def collect_server_status(ssh: SSHManager, server: ServerConfig) -> Server
             )
         )
 
+    # Collect system resources
+    resources = await collect_resources(ssh, server)
+
     return ServerStatus(
         name=server.name,
         hostname=server.hostname,
         reachable=True,
         services=services,
+        resources=resources,
         collected_at=datetime.now(UTC),
     )
 

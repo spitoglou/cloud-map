@@ -13,12 +13,14 @@ from cloud_map.config import load_inventory
 from cloud_map.display import (
     display_containers_table,
     display_ping_results,
+    display_resources_table,
     display_services_table,
     display_status_table,
 )
 from cloud_map.pdf import (
     generate_containers_pdf,
     generate_ping_pdf,
+    generate_resources_pdf,
     generate_services_pdf,
     generate_status_pdf,
 )
@@ -137,6 +139,21 @@ def services(ctx: click.Context, pdf_path: str | None) -> None:
 
     if pdf_path:
         path = generate_services_pdf(list(statuses), pdf_path)
+        console.print(f"[green]PDF saved to:[/green] {path}")
+
+
+@cli.command()
+@_pdf_option
+@click.pass_context
+def resources(ctx: click.Context, pdf_path: str | None) -> None:
+    """Display system resources (CPU, memory, disk) across all servers."""
+    inventory = _load_inventory(ctx)
+    statuses = asyncio.run(collect_all(inventory))
+    save_cache(list(statuses), inventory.cache_path)
+    display_resources_table(list(statuses))
+
+    if pdf_path:
+        path = generate_resources_pdf(list(statuses), pdf_path)
         console.print(f"[green]PDF saved to:[/green] {path}")
 
 

@@ -96,6 +96,50 @@ class SystemdServiceInfo:
 
 
 @dataclass
+class MemoryInfo:
+    """Memory information in bytes."""
+
+    total: int
+    used: int
+    available: int
+
+    @property
+    def used_percent(self) -> float:
+        return (self.used / self.total * 100) if self.total else 0.0
+
+
+@dataclass
+class CpuInfo:
+    """CPU information."""
+
+    cores: int
+    usage_percent: float
+
+
+@dataclass
+class DiskInfo:
+    """Disk partition information in bytes."""
+
+    mount: str
+    total: int
+    used: int
+    available: int
+
+    @property
+    def used_percent(self) -> float:
+        return (self.used / self.total * 100) if self.total else 0.0
+
+
+@dataclass
+class ResourceInfo:
+    """System resource snapshot for a server."""
+
+    memory: MemoryInfo | None = None
+    cpu: CpuInfo | None = None
+    disks: list[DiskInfo] = field(default_factory=list)
+
+
+@dataclass
 class ServiceInfo:
     """Unified service info combining Docker and systemd."""
 
@@ -113,6 +157,7 @@ class ServerStatus:
     hostname: str
     reachable: bool
     services: list[ServiceInfo] = field(default_factory=list)
+    resources: ResourceInfo | None = None
     error: str | None = None
     collected_at: datetime | None = None
 

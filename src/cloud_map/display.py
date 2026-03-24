@@ -9,6 +9,7 @@ from rich.table import Table
 from rich.text import Text
 
 from cloud_map.models import HealthStatus, ServerStatus
+from cloud_map.resources import format_bytes
 
 console = Console()
 
@@ -190,3 +191,81 @@ def _display_fleet_summary(statuses: list[ServerStatus]) -> None:
             parts.append(f"[{color}]{count} {status.value}[/{color}]")
 
     console.print(f"Fleet: {total} services — {', '.join(parts)}")
+
+
+def display_resources_table(statuses: list[ServerStatus]) -> None:
+    """Display system resource usage across servers."""
+    table = Table(title="Cloud Map — System Resources", show_lines=True)
+    table.add_column("Server", style="bold")
+    table.add_column("CPU Cores", justify="center")
+    table.add_column("CPU Usage", justify="center")
+    table.add_column("Memory", min_width=25)
+    table.add_column("Disks", min_width=35)
+
+    for server in statuses:
+        if not server.reachable:
+            table.add_row(
+                f"{server.name}\n[dim]{server.hostname}[/dim]",
+                "[dim]—[/dim]",
+                "[dim]—[/dim]",
+                "[dim]unreachable[/dim]",
+                "[dim]unreachable[/dim]",
+            )
+            continue
+
+        r = server.resources
+        if not r:
+            table.add_row(
+                f"{server.name}\n[dim]{server.hostname}[/dim]",
+                "[dim]—[/dim]",
+                "[dim]—[/dim]",
+                "[dim]no data[/dim]",
+                "[dim]no data[/dim]",
+            )
+            continue
+
+        # CPU
+        cores = str(r.cpu.cores) if r.cpu else "—"
+        if r.cpu:
+            usage = r.cpu.usage_percent
+            usage_color = "green" if usage < 70 else "yellow" if usage < 90 else "red"
+            cpu_usage = f"[{usage_color}]{usage:.1f}%[/{usage_color}]"
+        else:
+            cpu_usage = "—"
+
+        # Memory
+        if r.memory:
+            pct = r.memory.used_percent
+            mem_color = "green" if pct < 70 else "yellow" if pct < 90 else "red"
+            mem_text = (
+                f"[{mem_color}]{pct:.1f}% used[/{mem_color}]\n"
+                f"[dim]{format_bytes(r.memory.used)} / {format_bytes(r.memory.total)}[/dim]\n"
+                f"[dim]{format_bytes(r.memory.available)} available[/dim]"
+            )
+        else:
+            mem_text = "—"
+
+        # Disks
+        if r.disks:
+            disk_parts = []
+            for d in r.disks:
+                pct = d.used_percent
+                d_color = "green" if pct < 70 else "yellow" if pct < 90 else "red"
+                disk_parts.append(
+                    f"[bold]{d.mount}[/bold] "
+                    f"[{d_color}]{pct:.1f}%[/{d_color}] "
+                    f"[dim]{format_bytes(d.used)}/{format_bytes(d.total)}[/dim]"
+                )
+            disk_text = "\n".join(disk_parts)
+        else:
+            disk_text = "—"
+
+        table.add_row(
+            f"{server.name}\n[dim]{server.hostname}[/dim]",
+            cores,
+            cpu_usage,
+            mem_text,
+            disk_text,
+        )
+
+    console.print(table)

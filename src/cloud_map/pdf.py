@@ -8,6 +8,7 @@ from pathlib import Path
 from fpdf import FPDF
 
 from cloud_map.models import HealthStatus, ServerStatus, ServiceType
+from cloud_map.resources import format_bytes
 
 _STATUS_COLORS = {
     HealthStatus.HEALTHY: (0, 180, 0),
@@ -325,3 +326,115 @@ def _add_fleet_summary(pdf: CloudMapPDF, statuses: list[ServerStatus]) -> None:
             pdf.set_text_color(*color)
             pdf.cell(0, 6, f"  {status.value}: {count}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
+
+
+def generate_resources_pdf(statuses: list[ServerStatus], output_path: str | Path) -> Path:
+    """Generate a PDF report for the resources command."""
+    path = Path(output_path)
+    pdf = CloudMapPDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.section_title("System Resources")
+
+    cols = [
+        ("Server", 30),
+        ("CPU", 20),
+        ("CPU %", 15),
+        ("Mem Used", 20),
+        ("Mem Total", 20),
+        ("Mem %", 15),
+        ("Disk", 25),
+        ("Disk %", 15),
+    ]
+    total_w = sum(w for _, w in cols)
+
+    # Header
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_fill_color(*_HEADER_BG)
+    pdf.set_text_color(*_HEADER_FG)
+    for label, width in cols:
+        pdf.cell(width, 8, label, border=1, fill=True, align="C")
+    pdf.ln()
+    pdf.set_text_color(0, 0, 0)
+
+    row_idx = 0
+    for server in statuses:
+        r = server.resources if server.reachable else None
+
+        if not server.reachable:
+            bg = _ROW_BG_ALT if row_idx % 2 == 0 else _ROW_BG
+            pdf.set_fill_color(*bg)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.cell(30, 7, server.name, border=1, fill=True)
+            pdf.cell(total_w - 30, 7, "unreachable", border=1, fill=True, align="C")
+            pdf.ln()
+            row_idx += 1
+            continue
+
+        if not r or (not r.memory and not r.cpu and not r.disks):
+            bg = _ROW_BG_ALT if row_idx % 2 == 0 else _ROW_BG
+            pdf.set_fill_color(*bg)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.cell(30, 7, server.name, border=1, fill=True)
+            pdf.cell(total_w - 30, 7, "no data", border=1, fill=True, align="C")
+            pdf.ln()
+            row_idx += 1
+            continue
+
+        # Determine rows needed (max of 1 base row + extra disk rows)
+        disk_count = max(len(r.disks), 1)
+        for di in range(disk_count):
+            bg = _ROW_BG_ALT if row_idx % 2 == 0 else _ROW_BG
+            pdf.set_fill_color(*bg)
+            pdf.set_font("Helvetica", "", 8)
+
+            # Server name only on first row
+            pdf.cell(30, 7, server.name if di == 0 else "", border=1, fill=True)
+
+            # CPU on first row
+            if di == 0 and r.cpu:
+                pdf.cell(20, 7, f"{r.cpu.cores} cores", border=1, fill=True, align="C")
+                _pct_cell(pdf, r.cpu.usage_percent, 15)
+            else:
+                pdf.cell(20, 7, "", border=1, fill=True)
+                pdf.cell(15, 7, "", border=1, fill=True)
+
+            # Memory on first row
+            if di == 0 and r.memory:
+                pdf.cell(20, 7, format_bytes(r.memory.used), border=1, fill=True, align="C")
+                pdf.cell(20, 7, format_bytes(r.memory.total), border=1, fill=True, align="C")
+                _pct_cell(pdf, r.memory.used_percent, 15)
+            else:
+                pdf.cell(20, 7, "", border=1, fill=True)
+                pdf.cell(20, 7, "", border=1, fill=True)
+                pdf.cell(15, 7, "", border=1, fill=True)
+
+            # Disk
+            if di < len(r.disks):
+                d = r.disks[di]
+                pdf.cell(25, 7, d.mount[:16], border=1, fill=True)
+                _pct_cell(pdf, d.used_percent, 15)
+            else:
+                pdf.cell(25, 7, "—", border=1, fill=True)
+                pdf.cell(15, 7, "", border=1, fill=True)
+
+            pdf.ln()
+            row_idx += 1
+
+    pdf.output(str(path))
+    return path
+
+
+def _pct_cell(pdf: CloudMapPDF, pct: float, width: int) -> None:
+    """Render a percentage cell with color coding."""
+    if pct < 70:
+        color = (0, 180, 0)
+    elif pct < 90:
+        color = (220, 180, 0)
+    else:
+        color = (220, 0, 0)
+    pdf.set_text_color(*color)
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.cell(width, 7, f"{pct:.1f}%", border=1, fill=True, align="C")
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "", 8)

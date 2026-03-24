@@ -30,6 +30,9 @@ Manages async SSH connections via `asyncssh`. Supports key-based and password-ba
 ### Docker Module (`docker.py`)
 Lists and parses Docker containers by running `docker ps -a --format` over SSH. Extracts container ID, name, image, status, state, health, and ports.
 
+### Resources Module (`resources.py`)
+Collects system resource data (CPU, memory, disk) by running a compound shell command over SSH in a single round-trip. Parses output of `free -b`, `nproc`, `vmstat`, and `df`.
+
 ### Systemd Module (`systemd.py`)
 Lists and parses systemd service status via SSH. Auto-discovers all services by running `systemctl list-units --type=service` when no explicit list is configured. Supports glob-based exclude patterns to filter out noisy internal services. Falls back to `systemctl show` for explicitly listed services.
 
@@ -52,8 +55,8 @@ Persists last known state to a JSON file after each collection. Supports offline
 
 1. CLI loads inventory YAML → list of `ServerConfig`
 2. Collector connects to each server via SSH concurrently
-3. For each server: runs `docker ps` and `systemctl show` → parses into `ContainerInfo` / `SystemdServiceInfo`
-4. Maps to unified `ServiceInfo` with `HealthStatus`
+3. For each server: runs `docker ps`, `systemctl show`, and resource commands → parses into `ContainerInfo` / `SystemdServiceInfo` / `ResourceInfo`
+4. Maps to unified `ServiceInfo` with `HealthStatus`, attaches `ResourceInfo` to `ServerStatus`
 5. Aggregates into `ServerStatus` per server
 6. Cache module saves results to JSON
 7. Display module renders Rich tables to terminal

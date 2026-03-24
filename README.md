@@ -5,6 +5,7 @@ Cloud server administration tool that connects to remote Linux servers via SSH t
 ## Features
 
 - SSH connectivity testing across your server fleet
+- System resource monitoring (CPU, memory, disk usage)
 - Docker container listing and health status
 - Systemd service monitoring
 - Color-coded Rich terminal tables with fleet-level health summary
@@ -106,6 +107,17 @@ List systemd services across all servers with active state and health. Auto-disc
 cloud-map services
 ```
 
+### `cloud-map resources`
+
+Display system resource usage (CPU cores/usage, memory, disk space) across all servers.
+
+```bash
+cloud-map resources
+cloud-map resources --pdf resources.pdf
+```
+
+Color-coded thresholds: green (<70%), yellow (70-90%), red (>90%).
+
 ### Global Options
 
 | Option | Env Variable | Default | Description |
@@ -120,6 +132,7 @@ cloud-map status --pdf report.pdf
 cloud-map containers --pdf containers.pdf
 cloud-map services --pdf services.pdf
 cloud-map ping --pdf connectivity.pdf
+cloud-map resources --pdf resources.pdf
 cloud-map status --cached --pdf cached-report.pdf
 ```
 
@@ -204,6 +217,7 @@ The project uses pre-commit hooks that enforce:
 src/cloud_map/
   cli.py          CLI entry point (Click)
   pdf.py          PDF report generation (fpdf2)
+  resources.py    System resource collection (CPU, memory, disk)
   config.py       YAML inventory loader
   ssh.py          Async SSH connection manager
   docker.py       Docker container listing/parsing

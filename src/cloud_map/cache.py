@@ -6,7 +6,16 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from cloud_map.models import HealthStatus, ServerStatus, ServiceInfo, ServiceType
+from cloud_map.models import (
+    CpuInfo,
+    DiskInfo,
+    HealthStatus,
+    MemoryInfo,
+    ResourceInfo,
+    ServerStatus,
+    ServiceInfo,
+    ServiceType,
+)
 
 
 def save_cache(statuses: list[ServerStatus], cache_path: str | Path) -> None:
@@ -56,7 +65,7 @@ def format_cache_age(collected_at: datetime) -> str:
 
 
 def _serialize_server(server: ServerStatus) -> dict:
-    return {
+    result = {
         "name": server.name,
         "hostname": server.hostname,
         "reachable": server.reachable,
@@ -71,6 +80,33 @@ def _serialize_server(server: ServerStatus) -> dict:
             for svc in server.services
         ],
     }
+    if server.resources:
+        r = server.resources
+        result["resources"] = {
+            "memory": {
+                "total": r.memory.total,
+                "used": r.memory.used,
+                "available": r.memory.available,
+            }
+            if r.memory
+            else None,
+            "cpu": {
+                "cores": r.cpu.cores,
+                "usage_percent": r.cpu.usage_percent,
+            }
+            if r.cpu
+            else None,
+            "disks": [
+                {
+                    "mount": d.mount,
+                    "total": d.total,
+                    "used": d.used,
+                    "available": d.available,
+                }
+                for d in r.disks
+            ],
+        }
+    return result
 
 
 def _deserialize_server(data: dict) -> ServerStatus:
@@ -83,10 +119,28 @@ def _deserialize_server(data: dict) -> ServerStatus:
         )
         for s in data.get("services", [])
     ]
+    resources = None
+    if "resources" in data and data["resources"]:
+        rd = data["resources"]
+        memory = None
+        if rd.get("memory"):
+            m = rd["memory"]
+            memory = MemoryInfo(total=m["total"], used=m["used"], available=m["available"])
+        cpu = None
+        if rd.get("cpu"):
+            c = rd["cpu"]
+            cpu = CpuInfo(cores=c["cores"], usage_percent=c["usage_percent"])
+        disks = [
+            DiskInfo(mount=d["mount"], total=d["total"], used=d["used"], available=d["available"])
+            for d in rd.get("disks", [])
+        ]
+        resources = ResourceInfo(memory=memory, cpu=cpu, disks=disks)
+
     return ServerStatus(
         name=data["name"],
         hostname=data["hostname"],
         reachable=data["reachable"],
         error=data.get("error"),
         services=services,
+        resources=resources,
     )
