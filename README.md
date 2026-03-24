@@ -11,6 +11,7 @@ Cloud server administration tool that connects to remote Linux servers via SSH t
 - Color-coded Rich terminal tables with fleet-level health summary
 - Offline cached status — view last known state without connecting
 - PDF export for all commands via `--pdf`
+- On-demand log viewing for containers and services (CLI + web dashboard)
 - Web server domain discovery (nginx and Apache httpd auto-detection)
 - Web monitoring dashboard with auto-refresh (FastAPI + Jinja2)
 - YAML-based server inventory
@@ -119,6 +120,23 @@ cloud-map resources --pdf resources.pdf
 ```
 
 Color-coded thresholds: green (<70%), yellow (70-90%), red (>90%).
+
+### `cloud-map logs`
+
+View recent logs for a Docker container or systemd service on a specific server.
+
+```bash
+cloud-map logs web-1 nginx               # Last 100 lines (auto-detects type)
+cloud-map logs web-1 nginx --lines 500   # Last 500 lines
+cloud-map logs web-1 nginx --follow      # Stream logs (Ctrl+C to stop)
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--lines` / `-n` | `100` | Number of log lines to fetch (max 10000) |
+| `--follow` / `-f` | off | Stream logs continuously |
+
+The service type (docker/systemd) is auto-detected from cached status data. Logs are also viewable from the web dashboard by clicking the "logs" button on any container or service row.
 
 ### `cloud-map domains`
 
@@ -263,6 +281,7 @@ src/cloud_map/
   cli.py          CLI entry point (Click)
   web.py          Web dashboard (FastAPI + Jinja2)
   templates/      Jinja2 HTML templates
+  logs.py         On-demand log retrieval (docker logs, journalctl)
   webserver.py    Web server domain discovery (nginx, Apache)
   pdf.py          PDF report generation (fpdf2)
   resources.py    System resource collection (CPU, memory, disk)

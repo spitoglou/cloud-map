@@ -19,7 +19,7 @@ Cloud Map is a CLI tool that connects to remote Linux servers via SSH to inspect
 ## Components
 
 ### CLI (`cli.py`)
-Entry point using Click. Provides commands: `ping`, `status`, `containers`, `services`, `domains`, `web`. All commands accept `-i` / `--inventory` to specify the inventory file.
+Entry point using Click. Provides commands: `ping`, `status`, `containers`, `services`, `domains`, `logs`, `web`. All commands accept `-i` / `--inventory` to specify the inventory file.
 
 ### Config (`config.py`)
 Loads server inventory from a YAML file. Parses server definitions into `ServerConfig` dataclasses.
@@ -47,6 +47,9 @@ Rich-based terminal output. Color-coded tables for status, containers, services,
 
 ### PDF (`pdf.py`)
 Generates printable PDF reports using `fpdf2`. Mirrors the terminal table output with formatted tables, color-coded health indicators, and fleet summaries. Each command has a corresponding PDF generator function.
+
+### Log Retrieval (`logs.py`)
+Fetches recent log output from Docker containers (`docker logs --tail`) and systemd services (`journalctl -u`) on remote servers via SSH. Used by both the CLI `logs` command and the web API `/api/logs/` endpoint. Logs are fetched live on demand, never cached.
 
 ### Web Server Discovery (`webserver.py`)
 Discovers nginx and Apache httpd installations on remote servers by probing standard config directories via SSH. Extracts configured domains by parsing `server_name` (nginx) and `ServerName`/`ServerAlias` (Apache) directives using `grep -rH`. Supports auto-detection (default) and inventory-driven overrides.

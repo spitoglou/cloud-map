@@ -174,6 +174,90 @@ def domains(ctx: click.Context, pdf_path: str | None) -> None:
         console.print(f"[green]PDF saved to:[/green] {path}")
 
 
+@cli.command("logs")
+@click.argument("server")
+@click.argument("service")
+@click.option("--lines", "-n", default=100, type=int, help="Number of log lines to fetch.")
+@click.option("--follow", "-f", is_flag=True, help="Stream logs continuously (Ctrl+C to stop).")
+@click.pass_context
+def logs_cmd(ctx: click.Context, server: str, service: str, lines: int, follow: bool) -> None:
+    """View logs for a container or service on a server."""
+    import sys
+
+    from cloud_map.logs import MAX_LINES
+
+    inventory = _load_inventory(ctx)
+    server_cfg = next((s for s in inventory.servers if s.name == server), None)
+    if not server_cfg:
+        console.print(f"[red]Error:[/red] Server '{server}' not found in inventory.")
+        raise SystemExit(1)
+
+    lines = max(1, min(lines, MAX_LINES))
+
+    # Determine service type from cached data if available.
+    svc_type = _detect_service_type(inventory, server, service)
+
+    if follow:
+        _follow_logs(server_cfg, service, svc_type, lines)
+    else:
+        output = asyncio.run(_fetch_logs(server_cfg, service, svc_type, lines))
+        sys.stdout.write(output)
+        if output and not output.endswith("\n"):
+            sys.stdout.write("\n")
+
+
+def _detect_service_type(inventory, server_name: str, service_name: str) -> str:
+    """Try to detect whether a service is docker or systemd from cached data."""
+    try:
+        from cloud_map.cache import load_cache
+
+        statuses, _ = load_cache(inventory.cache_path)
+        for s in statuses:
+            if s.name == server_name:
+                for svc in s.services:
+                    if svc.name == service_name:
+                        return svc.service_type.value
+    except (FileNotFoundError, KeyError):
+        pass
+    # Default to docker; if that fails the error message will hint at the issue.
+    return "docker"
+
+
+async def _fetch_logs(server_cfg, service: str, svc_type: str, lines: int) -> str:
+    from cloud_map.logs import fetch_logs
+    from cloud_map.ssh import SSHManager
+
+    ssh = SSHManager()
+    try:
+        return await fetch_logs(ssh, server_cfg, service, svc_type, lines)
+    finally:
+        await ssh.close_all()
+
+
+def _follow_logs(server_cfg, service: str, svc_type: str, lines: int) -> None:
+    """Stream logs using --follow."""
+    import subprocess
+
+    if svc_type == "docker":
+        cmd = f"docker logs --tail {lines} -f {service}"
+    else:
+        cmd = f"journalctl -u {service} -n {lines} --no-pager -f"
+
+    # Build SSH command to stream.
+    ssh_args = ["ssh", "-o", "StrictHostKeyChecking=no"]
+    if server_cfg.key_path:
+        ssh_args += ["-i", server_cfg.key_path]
+    if server_cfg.port != 22:
+        ssh_args += ["-p", str(server_cfg.port)]
+    ssh_args.append(f"{server_cfg.username}@{server_cfg.hostname}")
+    ssh_args.append(cmd)
+
+    try:
+        subprocess.run(ssh_args)
+    except KeyboardInterrupt:
+        pass
+
+
 @cli.command()
 @click.option("--host", default="0.0.0.0", help="Address to bind the web server to.")
 @click.option("--port", default=8000, type=int, help="Port to bind the web server to.")

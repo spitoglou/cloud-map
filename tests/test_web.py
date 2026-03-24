@@ -118,6 +118,26 @@ def test_api_status_includes_domains(client):
     assert web["domains"][0]["web_server_type"] == "nginx"
 
 
+def test_api_logs_endpoint(client):
+    with patch("cloud_map.web.SSHManager") as mock_ssh_cls:
+        mock_ssh = AsyncMock()
+        mock_ssh.run_command = AsyncMock(return_value="line1\nline2\n")
+        mock_ssh.close_all = AsyncMock()
+        mock_ssh_cls.return_value = mock_ssh
+        # Also need to patch load_cache for service type detection.
+        with patch("cloud_map.web.load_cache", side_effect=FileNotFoundError):
+            resp = client.get("/api/logs/web-1/nginx?lines=50")
+    assert resp.status_code == 200
+    assert "text/plain" in resp.headers["content-type"]
+    assert "line1" in resp.text
+
+
+def test_api_logs_unknown_server(client):
+    resp = client.get("/api/logs/unknown-server/nginx")
+    assert resp.status_code == 404
+    assert "not found" in resp.text.lower()
+
+
 def test_dashboard_default_refresh(client):
     resp = client.get("/")
     # The template should embed the configured default refresh value.

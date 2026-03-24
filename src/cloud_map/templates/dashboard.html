@@ -80,10 +80,36 @@
     #spinner-overlay.active { opacity: 1; pointer-events: auto; }
     .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .log-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 0.15rem 0.4rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+    .log-btn:hover { border-color: var(--accent); color: var(--accent); }
+    #log-viewer { position: fixed; inset: 0; background: rgba(15,17,23,0.85); z-index: 2000; display: none; padding: 2rem; }
+    #log-viewer.active { display: flex; flex-direction: column; }
+    #log-viewer .log-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; flex-shrink: 0; }
+    #log-viewer .log-header h2 { font-size: 1rem; font-weight: 600; flex: 1; }
+    #log-viewer .log-header select, #log-viewer .log-header button { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    #log-viewer .log-header button:hover { border-color: var(--accent); }
+    #log-content { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow: auto; font-family: "Cascadia Code", "Fira Code", "Consolas", monospace; font-size: 0.8rem; line-height: 1.5; white-space: pre; color: var(--text); }
+    #log-content .log-loading { color: var(--text-muted); }
   </style>
 </head>
 <body>
 <div id="spinner-overlay"><div class="spinner"></div></div>
+<div id="log-viewer">
+  <div class="log-header">
+    <h2 id="log-title">Logs</h2>
+    <label style="color:var(--text-muted);font-size:0.85rem;">Lines:</label>
+    <select id="log-lines">
+      <option value="50">50</option>
+      <option value="100" selected>100</option>
+      <option value="500">500</option>
+      <option value="1000">1000</option>
+      <option value="5000">5000</option>
+    </select>
+    <button id="log-refresh-btn">Refresh</button>
+    <button id="log-close-btn">Close</button>
+  </div>
+  <div id="log-content"></div>
+</div>
 
 <header>
   <h1>Cloud Map</h1>
@@ -361,7 +387,7 @@ function renderContainers() {
       <table><tr><th>Container</th><th>Status</th><th>Health</th></tr>`;
     for (const c of containers) {
       html += `<tr class="expandable" data-target="${esc(c.name)}"><td>${esc(c.name)}</td><td>${esc(c.detail)}</td>
-        <td><span class="badge ${c.health}">${esc(c.health)}</span></td></tr>`;
+        <td><span class="badge ${c.health}">${esc(c.health)}</span> <button class="log-btn" data-server="${esc(s.name)}" data-service="${esc(c.name)}" data-type="docker">logs</button></td></tr>`;
       html += metaRow(c, 3);
     }
     html += '</table></div></details>';
@@ -388,7 +414,7 @@ function renderServices() {
       <table><tr><th>Service</th><th>State</th><th>Health</th></tr>`;
     for (const svc of svcs) {
       html += `<tr class="expandable" data-target="${esc(svc.name)}"><td>${esc(svc.name)}</td><td>${esc(svc.detail)}</td>
-        <td><span class="badge ${svc.health}">${esc(svc.health)}</span></td></tr>`;
+        <td><span class="badge ${svc.health}">${esc(svc.health)}</span> <button class="log-btn" data-server="${esc(s.name)}" data-service="${esc(svc.name)}" data-type="systemd">logs</button></td></tr>`;
       html += metaRow(svc, 3);
     }
     html += '</table></div></details>';
@@ -471,6 +497,61 @@ function render() {
   renderResources();
   renderDomains();
 }
+
+// --- Log viewer ---
+const logViewer = document.getElementById('log-viewer');
+const logTitle = document.getElementById('log-title');
+const logContent = document.getElementById('log-content');
+const logLinesSelect = document.getElementById('log-lines');
+let currentLogServer = null;
+let currentLogService = null;
+
+function openLogViewer(serverName, serviceName, serviceType) {
+  currentLogServer = serverName;
+  currentLogService = serviceName;
+  logTitle.textContent = `${serverName} / ${serviceName} (${serviceType})`;
+  logViewer.classList.add('active');
+  loadLogs();
+}
+
+async function loadLogs() {
+  if (!currentLogServer || !currentLogService) return;
+  const lines = logLinesSelect.value;
+  logContent.innerHTML = '<span class="log-loading">Loading logs...</span>';
+  try {
+    const resp = await fetch(`/api/logs/${encodeURIComponent(currentLogServer)}/${encodeURIComponent(currentLogService)}?lines=${lines}`);
+    const text = await resp.text();
+    logContent.textContent = text;
+    logContent.scrollTop = logContent.scrollHeight;
+  } catch (e) {
+    logContent.textContent = 'Failed to fetch logs: ' + e.message;
+  }
+}
+
+document.getElementById('log-close-btn').addEventListener('click', () => {
+  logViewer.classList.remove('active');
+  currentLogServer = null;
+  currentLogService = null;
+});
+document.getElementById('log-refresh-btn').addEventListener('click', loadLogs);
+logLinesSelect.addEventListener('change', loadLogs);
+
+// Close on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && logViewer.classList.contains('active')) {
+    logViewer.classList.remove('active');
+    currentLogServer = null;
+    currentLogService = null;
+  }
+});
+
+// Attach log viewer via event delegation on log buttons.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.log-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  openLogViewer(btn.dataset.server, btn.dataset.service, btn.dataset.type);
+});
 
 // Initial render + schedule
 render();

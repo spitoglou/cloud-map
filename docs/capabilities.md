@@ -65,6 +65,21 @@ Options:
 
 The dashboard has four tabs: Overview, Containers, Services, and Resources. The refresh interval can be changed from the UI at any time via a dropdown. Data is cached for 30 seconds to avoid redundant SSH connections on rapid refreshes.
 
+### `cloud-map logs`
+View recent logs for a Docker container or systemd service on a specific server.
+
+```bash
+cloud-map logs web-1 nginx               # Last 100 lines
+cloud-map logs web-1 nginx --lines 500   # Custom line count
+cloud-map logs web-1 nginx --follow      # Stream logs (Ctrl+C to stop)
+```
+
+Options:
+- `--lines` / `-n` — Number of lines to fetch (default: `100`, max: `10000`)
+- `--follow` / `-f` — Stream logs continuously until interrupted
+
+Auto-detects whether the service is a Docker container or systemd unit from cached status data. Also available in the web dashboard via the "logs" button on container/service rows.
+
 ### `cloud-map domains`
 Discover and display web server domains configured in nginx and Apache httpd across all servers. Auto-detects installed web servers by probing standard config directories.
 
