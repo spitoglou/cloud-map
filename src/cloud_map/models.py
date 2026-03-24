@@ -23,6 +23,30 @@ class ServiceType(enum.Enum):
     SYSTEMD = "systemd"
 
 
+class WebServerType(enum.Enum):
+    """Type of web server."""
+
+    NGINX = "nginx"
+    HTTPD = "httpd"
+
+
+@dataclass
+class WebServerConfig:
+    """Configuration for web server discovery on a server."""
+
+    type: WebServerType
+    config_path: str | None = None
+
+
+@dataclass
+class DomainInfo:
+    """A domain discovered from web server configuration."""
+
+    domain: str
+    web_server_type: WebServerType
+    config_file: str = ""
+
+
 @dataclass
 class ServerConfig:
     """Configuration for a single server."""
@@ -36,6 +60,7 @@ class ServerConfig:
     docker_enabled: bool = True
     systemd_services: list[str] = field(default_factory=list)
     systemd_exclude: list[str] = field(default_factory=list)
+    webservers: list[WebServerConfig] | bool | None = None
 
 
 @dataclass
@@ -147,6 +172,7 @@ class ServiceInfo:
     service_type: ServiceType
     health: HealthStatus
     detail: str = ""
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -158,6 +184,7 @@ class ServerStatus:
     reachable: bool
     services: list[ServiceInfo] = field(default_factory=list)
     resources: ResourceInfo | None = None
+    domains: list[DomainInfo] = field(default_factory=list)
     error: str | None = None
     collected_at: datetime | None = None
 

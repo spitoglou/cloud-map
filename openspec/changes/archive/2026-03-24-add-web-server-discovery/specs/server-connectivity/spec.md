@@ -1,8 +1,5 @@
-# server-connectivity Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-initial-project-scaffold. Update Purpose after archive.
-## Requirements
 ### Requirement: Server Inventory Configuration
 The system SHALL load server definitions from a YAML configuration file. Each server entry MUST include a hostname and MAY include port, username, SSH key path, password, systemd_services, systemd_exclude, and an optional `webservers` field. The `webservers` field can be a list of overrides (specifying type and custom config_path) or `false` to disable auto-detection for that server.
 
@@ -25,26 +22,3 @@ The system SHALL load server definitions from a YAML configuration file. Each se
 #### Scenario: Load inventory without webservers field
 - **WHEN** a server entry has no `webservers` field
 - **THEN** web server auto-detection proceeds with default paths
-
-### Requirement: SSH Connection Management
-The system SHALL connect to remote servers via SSH using key-based or password-based authentication. Connections MUST be reusable within a session and MUST handle timeouts and unreachable hosts gracefully.
-
-#### Scenario: Successful SSH connection with key
-- **WHEN** a server is reachable and a valid SSH key is configured
-- **THEN** the system establishes an SSH session and can execute remote commands
-
-#### Scenario: Successful SSH connection with password
-- **WHEN** a server is reachable and password authentication is configured
-- **THEN** the system establishes an SSH session and can execute remote commands
-
-#### Scenario: Unreachable server
-- **WHEN** a server is not reachable within the timeout period
-- **THEN** the system marks the server as unreachable and continues with remaining servers
-
-### Requirement: Connectivity Check
-The system SHALL provide a `ping` command that tests SSH connectivity to all configured servers and reports results.
-
-#### Scenario: Ping all servers
-- **WHEN** the user runs `cloud-map ping`
-- **THEN** the system attempts SSH connection to each server and displays reachable/unreachable status
-

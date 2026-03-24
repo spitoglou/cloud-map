@@ -11,6 +11,8 @@ Cloud server administration tool that connects to remote Linux servers via SSH t
 - Color-coded Rich terminal tables with fleet-level health summary
 - Offline cached status — view last known state without connecting
 - PDF export for all commands via `--pdf`
+- Web server domain discovery (nginx and Apache httpd auto-detection)
+- Web monitoring dashboard with auto-refresh (FastAPI + Jinja2)
 - YAML-based server inventory
 - Key-based and password-based SSH authentication
 
@@ -118,6 +120,49 @@ cloud-map resources --pdf resources.pdf
 
 Color-coded thresholds: green (<70%), yellow (70-90%), red (>90%).
 
+### `cloud-map domains`
+
+Discover and display web server domains (nginx `server_name`, Apache `ServerName`/`ServerAlias`) across all servers. Auto-detects nginx and Apache httpd by probing standard config directories — no inventory changes needed.
+
+```bash
+cloud-map domains
+cloud-map domains --pdf domains.pdf
+```
+
+To override config paths or disable auto-detection for a server, add a `webservers` field to its inventory entry:
+
+```yaml
+servers:
+  - name: web-prod-1
+    hostname: 10.0.0.1
+    webservers:
+      - type: nginx
+        config_path: /opt/nginx/conf  # custom path
+      - type: httpd
+
+  - name: db-1
+    hostname: 10.0.0.2
+    webservers: false  # disable auto-detection
+```
+
+### `cloud-map web`
+
+Start a web monitoring dashboard in your browser. Shows the same data as the CLI commands in a live-updating dark-themed UI with tabs for overview, containers, services, resources, and domains.
+
+```bash
+cloud-map web                              # Start on 0.0.0.0:8000
+cloud-map web --host 127.0.0.1 --port 9090 # Custom bind address
+cloud-map web --refresh 60                 # Default 60s auto-refresh interval
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--host` | `0.0.0.0` | Address to bind the web server to |
+| `--port` | `8000` | Port to bind the web server to |
+| `--refresh` | `30` | Default auto-refresh interval in seconds |
+
+The refresh interval can also be changed from the dashboard UI at any time.
+
 ### Global Options
 
 | Option | Env Variable | Default | Description |
@@ -216,6 +261,9 @@ The project uses pre-commit hooks that enforce:
 ```
 src/cloud_map/
   cli.py          CLI entry point (Click)
+  web.py          Web dashboard (FastAPI + Jinja2)
+  templates/      Jinja2 HTML templates
+  webserver.py    Web server domain discovery (nginx, Apache)
   pdf.py          PDF report generation (fpdf2)
   resources.py    System resource collection (CPU, memory, disk)
   config.py       YAML inventory loader

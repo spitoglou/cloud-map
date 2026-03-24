@@ -49,6 +49,32 @@ cloud-map services
 
 Displays service name, active state, sub-state, and health for each reachable server. Auto-discovers all services unless `systemd_services` is explicitly set. Use `systemd_exclude` to filter out unwanted services.
 
+### `cloud-map web`
+Start a web monitoring dashboard. Launches a FastAPI server with a Jinja2-rendered dark-themed UI showing server health, containers, services, and resource usage.
+
+```bash
+cloud-map web                              # Start on 0.0.0.0:8000
+cloud-map web --host 127.0.0.1 --port 9090 # Custom bind address
+cloud-map web --refresh 60                 # Default 60s auto-refresh
+```
+
+Options:
+- `--host` — Address to bind to (default: `0.0.0.0`)
+- `--port` — Port to bind to (default: `8000`)
+- `--refresh` — Default auto-refresh interval in seconds (default: `30`)
+
+The dashboard has four tabs: Overview, Containers, Services, and Resources. The refresh interval can be changed from the UI at any time via a dropdown. Data is cached for 30 seconds to avoid redundant SSH connections on rapid refreshes.
+
+### `cloud-map domains`
+Discover and display web server domains configured in nginx and Apache httpd across all servers. Auto-detects installed web servers by probing standard config directories.
+
+```bash
+cloud-map domains
+cloud-map domains --pdf domains.pdf
+```
+
+Extracts `server_name` (nginx) and `ServerName`/`ServerAlias` (Apache) directives. Checks `/etc/nginx/`, `/etc/httpd/`, and `/etc/apache2/` by default. Override paths or disable per-server via the `webservers` inventory field.
+
 ## Global Options
 
 ### `-i` / `--inventory`

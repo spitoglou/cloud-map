@@ -9,12 +9,14 @@ from pathlib import Path
 from cloud_map.models import (
     CpuInfo,
     DiskInfo,
+    DomainInfo,
     HealthStatus,
     MemoryInfo,
     ResourceInfo,
     ServerStatus,
     ServiceInfo,
     ServiceType,
+    WebServerType,
 )
 
 
@@ -76,6 +78,7 @@ def _serialize_server(server: ServerStatus) -> dict:
                 "type": svc.service_type.value,
                 "health": svc.health.value,
                 "detail": svc.detail,
+                "metadata": svc.metadata,
             }
             for svc in server.services
         ],
@@ -106,6 +109,15 @@ def _serialize_server(server: ServerStatus) -> dict:
                 for d in r.disks
             ],
         }
+    if server.domains:
+        result["domains"] = [
+            {
+                "domain": d.domain,
+                "web_server_type": d.web_server_type.value,
+                "config_file": d.config_file,
+            }
+            for d in server.domains
+        ]
     return result
 
 
@@ -116,6 +128,7 @@ def _deserialize_server(data: dict) -> ServerStatus:
             service_type=ServiceType(s["type"]),
             health=HealthStatus(s["health"]),
             detail=s.get("detail", ""),
+            metadata=s.get("metadata", {}),
         )
         for s in data.get("services", [])
     ]
@@ -136,6 +149,15 @@ def _deserialize_server(data: dict) -> ServerStatus:
         ]
         resources = ResourceInfo(memory=memory, cpu=cpu, disks=disks)
 
+    domains = [
+        DomainInfo(
+            domain=d["domain"],
+            web_server_type=WebServerType(d["web_server_type"]),
+            config_file=d.get("config_file", ""),
+        )
+        for d in data.get("domains", [])
+    ]
+
     return ServerStatus(
         name=data["name"],
         hostname=data["hostname"],
@@ -143,4 +165,5 @@ def _deserialize_server(data: dict) -> ServerStatus:
         error=data.get("error"),
         services=services,
         resources=resources,
+        domains=domains,
     )

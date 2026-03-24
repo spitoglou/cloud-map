@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cloud Map Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e0e0e0;
+      --text-muted: #8b8fa3;
+      --healthy: #22c55e;
+      --unhealthy: #ef4444;
+      --degraded: #f59e0b;
+      --unknown: #6b7280;
+      --accent: #3b82f6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: var(--bg); color: var(--text); }
+    header { padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.25rem; font-weight: 600; }
+    .controls { display: flex; align-items: center; gap: 1rem; font-size: 0.85rem; }
+    .controls label { color: var(--text-muted); }
+    .controls select { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.5rem; border-radius: 4px; }
+    #last-updated { color: var(--text-muted); font-size: 0.8rem; }
+    #countdown { color: var(--text-muted); font-size: 0.8rem; }
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 2rem; }
+    .tab { padding: 0.75rem 1.25rem; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; font-size: 0.9rem; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .panel { display: none; padding: 1.5rem 2rem; }
+    .panel.active { display: block; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .card-header h3 { font-size: 1rem; font-weight: 600; }
+    .card-header .hostname { color: var(--text-muted); font-size: 0.8rem; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge.healthy { background: rgba(34,197,94,0.15); color: var(--healthy); }
+    .badge.unhealthy { background: rgba(239,68,68,0.15); color: var(--unhealthy); }
+    .badge.degraded { background: rgba(245,158,11,0.15); color: var(--degraded); }
+    .badge.unknown { background: rgba(107,114,128,0.15); color: var(--unknown); }
+    .badge.unreachable { background: rgba(239,68,68,0.15); color: var(--unhealthy); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+    td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+    .bar-bg { background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+    .bar-fill.low { background: var(--healthy); }
+    .bar-fill.mid { background: var(--degraded); }
+    .bar-fill.high { background: var(--unhealthy); }
+    .resource-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+    .resource-label { width: 60px; font-size: 0.8rem; color: var(--text-muted); }
+    .resource-bar { flex: 1; }
+    .resource-value { width: 50px; text-align: right; font-size: 0.8rem; }
+    .empty { color: var(--text-muted); text-align: center; padding: 3rem; }
+    details.server-group { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; }
+    details.server-group summary { padding: 0.75rem 1.25rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; font-weight: 600; list-style: none; }
+    details.server-group summary::-webkit-details-marker { display: none; }
+    details.server-group summary::before { content: '\25B6'; font-size: 0.65rem; transition: transform 0.15s; color: var(--text-muted); }
+    details.server-group[open] summary::before { transform: rotate(90deg); }
+    details.server-group summary .hostname { color: var(--text-muted); font-size: 0.8rem; font-weight: 400; margin-left: auto; }
+    details.server-group summary .count { color: var(--text-muted); font-size: 0.8rem; font-weight: 400; }
+    details.server-group .group-body { padding: 0 1.25rem 1rem; }
+    tr.expandable { cursor: pointer; }
+    tr.expandable:hover { background: rgba(255,255,255,0.03); }
+    tr.meta-row td { padding: 0.3rem 0.5rem 0.6rem 1.5rem; border-bottom: 1px solid var(--border); }
+    tr.meta-row .meta-grid { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; }
+    tr.meta-row .meta-item { font-size: 0.8rem; }
+    tr.meta-row .meta-key { color: var(--text-muted); }
+    tr.meta-row .meta-val { color: var(--text); }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.4rem; vertical-align: middle; }
+    .status-dot.healthy { background: var(--healthy); }
+    .status-dot.unhealthy { background: var(--unhealthy); }
+    .status-dot.degraded { background: var(--degraded); }
+    .status-dot.unknown { background: var(--unknown); }
+    #spinner-overlay { position: fixed; inset: 0; background: rgba(15,17,23,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+    #spinner-overlay.active { opacity: 1; pointer-events: auto; }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="spinner-overlay"><div class="spinner"></div></div>
+
+<header>
+  <h1>Cloud Map</h1>
+  <div class="controls">
+    <span id="last-updated"></span>
+    <span id="countdown"></span>
+    <label for="refresh-interval">Refresh:</label>
+    <select id="refresh-interval">
+      <option value="10">10s</option>
+      <option value="30">30s</option>
+      <option value="60">1m</option>
+      <option value="120">2m</option>
+      <option value="300">5m</option>
+      <option value="0">Off</option>
+    </select>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="overview">Overview</div>
+  <div class="tab" data-tab="containers">Containers</div>
+  <div class="tab" data-tab="services">Services</div>
+  <div class="tab" data-tab="resources">Resources</div>
+  <div class="tab" data-tab="domains">Domains</div>
+</div>
+
+<div id="overview" class="panel active"></div>
+<div id="containers" class="panel"></div>
+<div id="services" class="panel"></div>
+<div id="domains" class="panel"></div>
+<div id="resources" class="panel"></div>
+
+<script>
+const DEFAULT_REFRESH = {{ default_refresh }};
+let servers = {{ servers | tojson }};
+let refreshTimer = null;
+
+// --- Tabs ---
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// --- Refresh control with countdown ---
+const refreshSelect = document.getElementById('refresh-interval');
+const countdownEl = document.getElementById('countdown');
+refreshSelect.value = String(DEFAULT_REFRESH);
+let countdownTimer = null;
+let secondsLeft = 0;
+
+function updateCountdown() {
+  const interval = parseInt(refreshSelect.value, 10);
+  if (interval <= 0 || secondsLeft <= 0) {
+    countdownEl.textContent = '';
+    return;
+  }
+  countdownEl.textContent = `(${secondsLeft}s)`;
+}
+
+function scheduleRefresh() {
+  clearInterval(refreshTimer);
+  clearInterval(countdownTimer);
+  countdownEl.textContent = '';
+  const interval = parseInt(refreshSelect.value, 10);
+  if (interval > 0) {
+    secondsLeft = interval;
+    updateCountdown();
+    countdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft <= 0) {
+        fetchStatus();
+      } else {
+        updateCountdown();
+      }
+    }, 1000);
+  }
+}
+refreshSelect.addEventListener('change', scheduleRefresh);
+
+const spinnerEl = document.getElementById('spinner-overlay');
+function showSpinner() { spinnerEl.classList.add('active'); }
+function hideSpinner() { spinnerEl.classList.remove('active'); }
+
+async function fetchStatus() {
+  clearInterval(countdownTimer);
+  countdownEl.textContent = '';
+  showSpinner();
+  try {
+    const resp = await fetch('/api/status');
+    servers = await resp.json();
+    render();
+  } catch (e) {
+    console.error('Refresh failed:', e);
+  }
+  hideSpinner();
+  // Restart countdown after fetch completes.
+  const interval = parseInt(refreshSelect.value, 10);
+  if (interval > 0) {
+    secondsLeft = interval;
+    updateCountdown();
+    countdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft <= 0) {
+        fetchStatus();
+      } else {
+        updateCountdown();
+      }
+    }, 1000);
+  }
+}
+
+// --- Collapse state persistence ---
+// Tracks which server groups are open, keyed by "panelId:serverName".
+const openGroups = new Set();
+
+function saveOpenState(panelId) {
+  const el = document.getElementById(panelId);
+  el.querySelectorAll('details.server-group').forEach(d => {
+    const key = panelId + ':' + d.dataset.server;
+    if (d.open) openGroups.add(key); else openGroups.delete(key);
+  });
+}
+
+function restoreOpenState(panelId) {
+  const el = document.getElementById(panelId);
+  el.querySelectorAll('details.server-group').forEach(d => {
+    if (openGroups.has(panelId + ':' + d.dataset.server)) d.open = true;
+  });
+}
+
+// --- Helpers ---
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function barClass(pct) {
+  if (pct < 60) return 'low';
+  if (pct < 85) return 'mid';
+  return 'high';
+}
+
+function formatBytes(b) {
+  if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB';
+  if (b >= 1048576) return (b / 1048576).toFixed(0) + ' MB';
+  return (b / 1024).toFixed(0) + ' KB';
+}
+
+const META_LABELS = {
+  image: 'Image', ports: 'Ports', state: 'State', health_check: 'Health Check',
+  description: 'Description', active_state: 'Active', sub_state: 'Sub-state',
+};
+
+function metaRow(svc, colspan) {
+  const m = svc.metadata;
+  if (!m || !Object.keys(m).length) return '';
+  let items = '';
+  for (const [k, v] of Object.entries(m)) {
+    const label = META_LABELS[k] || k;
+    items += `<span class="meta-item"><span class="meta-key">${esc(label)}:</span> <span class="meta-val">${esc(v)}</span></span>`;
+  }
+  return `<tr class="meta-row" data-for="${esc(svc.name)}" style="display:none"><td colspan="${colspan}"><div class="meta-grid">${items}</div></td></tr>`;
+}
+
+function serverHealth(s, serviceList) {
+  if (!s.reachable) return 'unreachable';
+  const healths = (serviceList || s.services).map(svc => svc.health);
+  if (!healths.length) return 'unknown';
+  if (healths.some(h => h === 'unhealthy')) return 'unhealthy';
+  if (healths.some(h => h === 'degraded')) return 'degraded';
+  if (healths.every(h => h === 'healthy')) return 'healthy';
+  return 'unknown';
+}
+
+// --- Expandable rows ---
+function bindExpandableRows(container) {
+  container.querySelectorAll('tr.expandable').forEach(row => {
+    row.addEventListener('click', () => {
+      const meta = row.nextElementSibling;
+      if (meta && meta.classList.contains('meta-row')) {
+        meta.style.display = meta.style.display === 'none' ? '' : 'none';
+      }
+    });
+  });
+}
+
+// --- Renderers ---
+function renderOverview() {
+  const el = document.getElementById('overview');
+  if (!servers.length) { el.innerHTML = '<p class="empty">No servers configured.</p>'; return; }
+  let html = '<div class="grid">';
+  for (const s of servers) {
+    const health = serverHealth(s);
+    const counts = {};
+    for (const svc of s.services) { counts[svc.health] = (counts[svc.health] || 0) + 1; }
+    html += `<div class="card">
+      <div class="card-header">
+        <h3>${esc(s.name)} <span class="badge ${health}">${health}</span></h3>
+        <span class="hostname">${esc(s.hostname)}</span>
+      </div>`;
+    if (!s.reachable) {
+      html += `<p style="color:var(--unhealthy);font-size:0.85rem;">${esc(s.error || 'Unreachable')}</p>`;
+    } else {
+      const docker = s.services.filter(svc => svc.type === 'docker');
+      const systemd = s.services.filter(svc => svc.type === 'systemd');
+      const sections = [];
+      if (docker.length) sections.push({label: 'Containers', svcs: docker});
+      if (systemd.length) sections.push({label: 'Services', svcs: systemd});
+      if (!sections.length) sections.push({label: 'Services', svcs: []});
+      for (const sec of sections) {
+        const counts = {};
+        for (const svc of sec.svcs) { counts[svc.health] = (counts[svc.health] || 0) + 1; }
+        html += `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;margin-bottom:0.25rem;">${sec.label}</div>`;
+        if (!sec.svcs.length) {
+          html += '<div style="font-size:0.8rem;color:var(--text-muted);padding-left:0.25rem;">none</div>';
+        } else {
+          html += '<table><tr><th>Health</th><th>Count</th></tr>';
+          for (const [h, c] of Object.entries(counts)) {
+            html += `<tr><td><span class="status-dot ${h}"></span>${esc(h)}</td><td>${c}</td></tr>`;
+          }
+          html += '</table>';
+        }
+      }
+      if (s.resources) {
+        const r = s.resources;
+        if (r.cpu) {
+          html += `<div class="resource-row" style="margin-top:0.75rem;">
+            <span class="resource-label">CPU</span>
+            <div class="resource-bar"><div class="bar-bg"><div class="bar-fill ${barClass(r.cpu.usage_percent)}" style="width:${r.cpu.usage_percent}%"></div></div></div>
+            <span class="resource-value">${r.cpu.usage_percent}%</span></div>`;
+        }
+        if (r.memory) {
+          html += `<div class="resource-row">
+            <span class="resource-label">Memory</span>
+            <div class="resource-bar"><div class="bar-bg"><div class="bar-fill ${barClass(r.memory.used_percent)}" style="width:${r.memory.used_percent}%"></div></div></div>
+            <span class="resource-value">${r.memory.used_percent}%</span></div>`;
+        }
+        if (r.disks && r.disks.length) {
+          let totalDisk = 0, usedDisk = 0;
+          for (const d of r.disks) { totalDisk += d.total; usedDisk += d.used; }
+          const diskPct = totalDisk ? Math.round(usedDisk / totalDisk * 1000) / 10 : 0;
+          html += `<div class="resource-row">
+            <span class="resource-label">Disk</span>
+            <div class="resource-bar"><div class="bar-bg"><div class="bar-fill ${barClass(diskPct)}" style="width:${diskPct}%"></div></div></div>
+            <span class="resource-value">${diskPct}%</span></div>`;
+          html += `<div style="font-size:0.75rem;color:var(--text-muted);padding-left:68px;">${formatBytes(usedDisk)} / ${formatBytes(totalDisk)}</div>`;
+        }
+      }
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderContainers() {
+  const el = document.getElementById('containers');
+  saveOpenState('containers');
+  const grouped = servers.filter(s => s.services.some(svc => svc.type === 'docker'));
+  if (!grouped.length) { el.innerHTML = '<p class="empty">No Docker containers found.</p>'; return; }
+  let html = '';
+  for (const s of grouped) {
+    const containers = s.services.filter(svc => svc.type === 'docker');
+    const health = serverHealth(s, containers);
+    html += `<details class="server-group" data-server="${esc(s.name)}">
+      <summary>${esc(s.name)} <span class="badge ${health}">${health}</span>
+        <span class="count">${containers.length} container${containers.length !== 1 ? 's' : ''}</span>
+        <span class="hostname">${esc(s.hostname)}</span></summary>
+      <div class="group-body">
+      <table><tr><th>Container</th><th>Status</th><th>Health</th></tr>`;
+    for (const c of containers) {
+      html += `<tr class="expandable" data-target="${esc(c.name)}"><td>${esc(c.name)}</td><td>${esc(c.detail)}</td>
+        <td><span class="badge ${c.health}">${esc(c.health)}</span></td></tr>`;
+      html += metaRow(c, 3);
+    }
+    html += '</table></div></details>';
+  }
+  el.innerHTML = html;
+  restoreOpenState('containers');
+  bindExpandableRows(el);
+}
+
+function renderServices() {
+  const el = document.getElementById('services');
+  saveOpenState('services');
+  const grouped = servers.filter(s => s.services.some(svc => svc.type === 'systemd'));
+  if (!grouped.length) { el.innerHTML = '<p class="empty">No systemd services found.</p>'; return; }
+  let html = '';
+  for (const s of grouped) {
+    const svcs = s.services.filter(svc => svc.type === 'systemd');
+    const health = serverHealth(s, svcs);
+    html += `<details class="server-group" data-server="${esc(s.name)}">
+      <summary>${esc(s.name)} <span class="badge ${health}">${health}</span>
+        <span class="count">${svcs.length} service${svcs.length !== 1 ? 's' : ''}</span>
+        <span class="hostname">${esc(s.hostname)}</span></summary>
+      <div class="group-body">
+      <table><tr><th>Service</th><th>State</th><th>Health</th></tr>`;
+    for (const svc of svcs) {
+      html += `<tr class="expandable" data-target="${esc(svc.name)}"><td>${esc(svc.name)}</td><td>${esc(svc.detail)}</td>
+        <td><span class="badge ${svc.health}">${esc(svc.health)}</span></td></tr>`;
+      html += metaRow(svc, 3);
+    }
+    html += '</table></div></details>';
+  }
+  el.innerHTML = html;
+  restoreOpenState('services');
+  bindExpandableRows(el);
+}
+
+function renderResources() {
+  const el = document.getElementById('resources');
+  saveOpenState('resources');
+  const reachable = servers.filter(s => s.reachable && s.resources);
+  if (!reachable.length) { el.innerHTML = '<p class="empty">No resource data available.</p>'; return; }
+  let html = '';
+  for (const s of reachable) {
+    const r = s.resources;
+    const health = serverHealth(s);
+    html += `<details class="server-group" data-server="${esc(s.name)}">
+      <summary>${esc(s.name)} <span class="badge ${health}">${health}</span>
+        <span class="hostname">${esc(s.hostname)}</span></summary>
+      <div class="group-body">`;
+    if (r.cpu) {
+      html += `<div class="resource-row">
+        <span class="resource-label">CPU</span>
+        <div class="resource-bar"><div class="bar-bg"><div class="bar-fill ${barClass(r.cpu.usage_percent)}" style="width:${r.cpu.usage_percent}%"></div></div></div>
+        <span class="resource-value">${r.cpu.usage_percent}%</span></div>`;
+      html += `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;padding-left:68px;">${r.cpu.cores} cores</div>`;
+    }
+    if (r.memory) {
+      html += `<div class="resource-row">
+        <span class="resource-label">Memory</span>
+        <div class="resource-bar"><div class="bar-bg"><div class="bar-fill ${barClass(r.memory.used_percent)}" style="width:${r.memory.used_percent}%"></div></div></div>
+        <span class="resource-value">${r.memory.used_percent}%</span></div>`;
+      html += `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;padding-left:68px;">${formatBytes(r.memory.used)} / ${formatBytes(r.memory.total)}</div>`;
+    }
+    if (r.disks && r.disks.length) {
+      for (const d of r.disks) {
+        html += `<div class="resource-row">
+          <span class="resource-label" title="${esc(d.mount)}">${esc(d.mount)}</span>
+          <div class="resource-bar"><div class="bar-bg"><div class="bar-fill ${barClass(d.used_percent)}" style="width:${d.used_percent}%"></div></div></div>
+          <span class="resource-value">${d.used_percent}%</span></div>`;
+        html += `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;padding-left:68px;">${formatBytes(d.used)} / ${formatBytes(d.total)}</div>`;
+      }
+    }
+    html += '</div></details>';
+  }
+  el.innerHTML = html;
+  restoreOpenState('resources');
+}
+
+function renderDomains() {
+  const el = document.getElementById('domains');
+  saveOpenState('domains');
+  const grouped = servers.filter(s => s.domains && s.domains.length > 0);
+  if (!grouped.length) { el.innerHTML = '<p class="empty">No web server domains discovered.</p>'; return; }
+  let html = '';
+  for (const s of grouped) {
+    html += `<details class="server-group" data-server="${esc(s.name)}">
+      <summary>${esc(s.name)}
+        <span class="count">${s.domains.length} domain${s.domains.length !== 1 ? 's' : ''}</span>
+        <span class="hostname">${esc(s.hostname)}</span></summary>
+      <div class="group-body">
+      <table><tr><th>Domain</th><th>Web Server</th><th>Config File</th></tr>`;
+    for (const d of s.domains) {
+      html += `<tr><td>${esc(d.domain)}</td><td>${esc(d.web_server_type)}</td>
+        <td style="color:var(--text-muted)">${esc(d.config_file)}</td></tr>`;
+    }
+    html += '</table></div></details>';
+  }
+  el.innerHTML = html;
+  restoreOpenState('domains');
+}
+
+function render() {
+  document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  renderOverview();
+  renderContainers();
+  renderServices();
+  renderResources();
+  renderDomains();
+}
+
+// Initial render + schedule
+render();
+scheduleRefresh();
+</script>
+
+</body>
+</html>

@@ -12,6 +12,7 @@ from cloud_map.collector import collect_all
 from cloud_map.config import load_inventory
 from cloud_map.display import (
     display_containers_table,
+    display_domains_table,
     display_ping_results,
     display_resources_table,
     display_services_table,
@@ -19,6 +20,7 @@ from cloud_map.display import (
 )
 from cloud_map.pdf import (
     generate_containers_pdf,
+    generate_domains_pdf,
     generate_ping_pdf,
     generate_resources_pdf,
     generate_services_pdf,
@@ -155,6 +157,38 @@ def resources(ctx: click.Context, pdf_path: str | None) -> None:
     if pdf_path:
         path = generate_resources_pdf(list(statuses), pdf_path)
         console.print(f"[green]PDF saved to:[/green] {path}")
+
+
+@cli.command()
+@_pdf_option
+@click.pass_context
+def domains(ctx: click.Context, pdf_path: str | None) -> None:
+    """Display discovered web server domains across all servers."""
+    inventory = _load_inventory(ctx)
+    statuses = asyncio.run(collect_all(inventory))
+    save_cache(list(statuses), inventory.cache_path)
+    display_domains_table(list(statuses))
+
+    if pdf_path:
+        path = generate_domains_pdf(list(statuses), pdf_path)
+        console.print(f"[green]PDF saved to:[/green] {path}")
+
+
+@cli.command()
+@click.option("--host", default="0.0.0.0", help="Address to bind the web server to.")
+@click.option("--port", default=8000, type=int, help="Port to bind the web server to.")
+@click.option("--refresh", default=30, type=int, help="Default auto-refresh interval in seconds.")
+@click.pass_context
+def web(ctx: click.Context, host: str, port: int, refresh: int) -> None:
+    """Start the web monitoring dashboard."""
+    import uvicorn
+
+    from cloud_map.web import app, configure
+
+    inventory = _load_inventory(ctx)
+    configure(inventory, refresh=refresh)
+    console.print(f"[green]Starting dashboard at[/green] http://{host}:{port}/")
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 def _load_inventory(ctx: click.Context):

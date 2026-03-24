@@ -425,6 +425,55 @@ def generate_resources_pdf(statuses: list[ServerStatus], output_path: str | Path
     return path
 
 
+def generate_domains_pdf(statuses: list[ServerStatus], output_path: str | Path) -> Path:
+    """Generate a PDF report for the domains command."""
+    path = Path(output_path)
+    pdf = CloudMapPDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.section_title("Web Server Domains")
+
+    cols = [("Server", 30), ("Domain", 50), ("Web Server", 25), ("Config File", 65)]
+    pdf._table_header(cols)
+
+    row_idx = 0
+    for server in statuses:
+        if not server.reachable:
+            bg = _ROW_BG_ALT if row_idx % 2 == 0 else _ROW_BG
+            pdf.set_fill_color(*bg)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(30, 7, server.name, border=1, fill=True)
+            pdf.cell(50, 7, "-", border=1, fill=True)
+            pdf.cell(25, 7, "unreachable", border=1, fill=True)
+            pdf.cell(65, 7, "", border=1, fill=True)
+            pdf.ln()
+            row_idx += 1
+        elif not server.domains:
+            bg = _ROW_BG_ALT if row_idx % 2 == 0 else _ROW_BG
+            pdf.set_fill_color(*bg)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(30, 7, server.name, border=1, fill=True)
+            pdf.cell(50, 7, "-", border=1, fill=True)
+            pdf.cell(25, 7, "no domains", border=1, fill=True)
+            pdf.cell(65, 7, "", border=1, fill=True)
+            pdf.ln()
+            row_idx += 1
+        else:
+            for i, d in enumerate(server.domains):
+                bg = _ROW_BG_ALT if row_idx % 2 == 0 else _ROW_BG
+                pdf.set_fill_color(*bg)
+                pdf.set_font("Helvetica", "", 9)
+                pdf.cell(30, 7, server.name if i == 0 else "", border=1, fill=True)
+                pdf.cell(50, 7, d.domain[:35], border=1, fill=True)
+                pdf.cell(25, 7, d.web_server_type.value, border=1, fill=True, align="C")
+                pdf.cell(65, 7, d.config_file[:45], border=1, fill=True)
+                pdf.ln()
+                row_idx += 1
+
+    pdf.output(str(path))
+    return path
+
+
 def _pct_cell(pdf: CloudMapPDF, pct: float, width: int) -> None:
     """Render a percentage cell with color coding."""
     if pct < 70:

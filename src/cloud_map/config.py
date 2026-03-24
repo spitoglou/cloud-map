@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from cloud_map.models import InventoryConfig, ServerConfig
+from cloud_map.models import InventoryConfig, ServerConfig, WebServerConfig, WebServerType
 
 
 def load_inventory(path: str | Path) -> InventoryConfig:
@@ -40,6 +40,7 @@ def load_inventory(path: str | Path) -> InventoryConfig:
                 docker_enabled=entry.get("docker_enabled", True),
                 systemd_services=entry.get("systemd_services", []),
                 systemd_exclude=entry.get("systemd_exclude", []),
+                webservers=_parse_webservers(entry.get("webservers")),
             )
         )
 
@@ -47,3 +48,20 @@ def load_inventory(path: str | Path) -> InventoryConfig:
         servers=servers,
         cache_path=data.get("cache_path", ".cloud-map-cache.json"),
     )
+
+
+def _parse_webservers(
+    raw: list[dict] | bool | None,
+) -> list[WebServerConfig] | bool | None:
+    """Parse the optional webservers inventory field."""
+    if raw is None:
+        return None  # auto-detect
+    if raw is False:
+        return False  # disabled
+    if not isinstance(raw, list):
+        return None
+    result = []
+    for ws in raw:
+        ws_type = WebServerType(ws["type"])
+        result.append(WebServerConfig(type=ws_type, config_path=ws.get("config_path")))
+    return result

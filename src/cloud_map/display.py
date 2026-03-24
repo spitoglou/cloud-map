@@ -269,3 +269,29 @@ def display_resources_table(statuses: list[ServerStatus]) -> None:
         )
 
     console.print(table)
+
+
+def display_domains_table(statuses: list[ServerStatus]) -> None:
+    """Display discovered web server domains across servers."""
+    table = Table(title="Cloud Map — Web Server Domains", show_lines=True)
+    table.add_column("Server", style="bold")
+    table.add_column("Domain")
+    table.add_column("Web Server")
+    table.add_column("Config File", style="dim")
+
+    has_domains = False
+    for server in statuses:
+        if not server.reachable:
+            table.add_row(server.name, "[dim]—[/dim]", "[dim]unreachable[/dim]", "")
+        elif not server.domains:
+            table.add_row(server.name, "[dim]—[/dim]", "[dim]no domains found[/dim]", "")
+        else:
+            has_domains = True
+            for i, d in enumerate(server.domains):
+                name = server.name if i == 0 else ""
+                table.add_row(name, d.domain, d.web_server_type.value, d.config_file)
+
+    console.print(table)
+
+    if not has_domains:
+        console.print("[dim]No web server domains discovered across the fleet.[/dim]")
