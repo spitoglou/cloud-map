@@ -56,28 +56,27 @@ async def collect_server_status(ssh: SSHManager, server: ServerConfig) -> Server
                 )
             )
 
-    # Collect systemd services
-    if server.systemd_services:
-        try:
-            systemd_svcs = await list_services(ssh, server)
-            for s in systemd_svcs:
-                services.append(
-                    ServiceInfo(
-                        name=s.name,
-                        service_type=ServiceType.SYSTEMD,
-                        health=s.health_status,
-                        detail=f"{s.active_state} ({s.sub_state})",
-                    )
-                )
-        except SystemdNotAvailableError:
+    # Collect systemd services (auto-discovers if systemd_services is empty)
+    try:
+        systemd_svcs = await list_services(ssh, server)
+        for s in systemd_svcs:
             services.append(
                 ServiceInfo(
-                    name="systemd",
+                    name=s.name,
                     service_type=ServiceType.SYSTEMD,
-                    health=HealthStatus.UNKNOWN,
-                    detail="systemd not available",
+                    health=s.health_status,
+                    detail=f"{s.active_state} ({s.sub_state})",
                 )
             )
+    except SystemdNotAvailableError:
+        services.append(
+            ServiceInfo(
+                name="systemd",
+                service_type=ServiceType.SYSTEMD,
+                health=HealthStatus.UNKNOWN,
+                detail="systemd not available",
+            )
+        )
 
     return ServerStatus(
         name=server.name,

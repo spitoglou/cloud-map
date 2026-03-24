@@ -9,6 +9,7 @@ Cloud server administration tool that connects to remote Linux servers via SSH t
 - Systemd service monitoring
 - Color-coded Rich terminal tables with fleet-level health summary
 - Offline cached status — view last known state without connecting
+- PDF export for all commands via `--pdf`
 - YAML-based server inventory
 - Key-based and password-based SSH authentication
 
@@ -110,6 +111,17 @@ cloud-map services
 | Option | Env Variable | Default | Description |
 |---|---|---|---|
 | `-i` / `--inventory` | `CLOUD_MAP_INVENTORY` | `inventory.yaml` | Path to inventory YAML file |
+| `--pdf <path>` | — | — | Export output to a PDF file |
+
+All commands support `--pdf` to generate a printable PDF report alongside the terminal output:
+
+```bash
+cloud-map status --pdf report.pdf
+cloud-map containers --pdf containers.pdf
+cloud-map services --pdf services.pdf
+cloud-map ping --pdf connectivity.pdf
+cloud-map status --cached --pdf cached-report.pdf
+```
 
 ## Configuration
 
@@ -191,6 +203,7 @@ The project uses pre-commit hooks that enforce:
 ```
 src/cloud_map/
   cli.py          CLI entry point (Click)
+  pdf.py          PDF report generation (fpdf2)
   config.py       YAML inventory loader
   ssh.py          Async SSH connection manager
   docker.py       Docker container listing/parsing

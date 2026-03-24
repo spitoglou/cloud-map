@@ -16,11 +16,27 @@ from cloud_map.display import (
     display_services_table,
     display_status_table,
 )
+from cloud_map.pdf import (
+    generate_containers_pdf,
+    generate_ping_pdf,
+    generate_services_pdf,
+    generate_status_pdf,
+)
 from cloud_map.ssh import SSHManager
 
 console = Console()
 
 DEFAULT_INVENTORY = "inventory.yaml"
+
+
+def _pdf_option(f):
+    """Shared --pdf option for all commands."""
+    return click.option(
+        "--pdf",
+        "pdf_path",
+        default=None,
+        help="Export output to a PDF file at the given path.",
+    )(f)
 
 
 @click.group()
@@ -39,8 +55,9 @@ def cli(ctx: click.Context, inventory: str) -> None:
 
 
 @cli.command()
+@_pdf_option
 @click.pass_context
-def ping(ctx: click.Context) -> None:
+def ping(ctx: click.Context, pdf_path: str | None) -> None:
     """Test SSH connectivity to all configured servers."""
     inventory = _load_inventory(ctx)
     ssh = SSHManager()
@@ -56,11 +73,16 @@ def ping(ctx: click.Context) -> None:
     results = asyncio.run(_ping())
     display_ping_results(results)
 
+    if pdf_path:
+        path = generate_ping_pdf(results, pdf_path)
+        console.print(f"[green]PDF saved to:[/green] {path}")
+
 
 @cli.command()
 @click.option("--cached", is_flag=True, help="Show last known state without connecting.")
+@_pdf_option
 @click.pass_context
-def status(ctx: click.Context, cached: bool) -> None:
+def status(ctx: click.Context, cached: bool, pdf_path: str | None) -> None:
     """Display health status of all servers and services."""
     inventory = _load_inventory(ctx)
 
@@ -69,6 +91,9 @@ def status(ctx: click.Context, cached: bool) -> None:
             statuses, collected_at = load_cache(inventory.cache_path)
             age = format_cache_age(collected_at)
             display_status_table(statuses, cached=True, collected_at=collected_at, cache_age=age)
+            if pdf_path:
+                path = generate_status_pdf(statuses, pdf_path, cached=True, cache_age=age)
+                console.print(f"[green]PDF saved to:[/green] {path}")
         except FileNotFoundError:
             console.print(
                 "[yellow]No cached data available.[/yellow] "
@@ -80,25 +105,39 @@ def status(ctx: click.Context, cached: bool) -> None:
     save_cache(list(statuses), inventory.cache_path)
     display_status_table(list(statuses))
 
+    if pdf_path:
+        path = generate_status_pdf(list(statuses), pdf_path)
+        console.print(f"[green]PDF saved to:[/green] {path}")
+
 
 @cli.command()
+@_pdf_option
 @click.pass_context
-def containers(ctx: click.Context) -> None:
+def containers(ctx: click.Context, pdf_path: str | None) -> None:
     """List Docker containers across all servers."""
     inventory = _load_inventory(ctx)
     statuses = asyncio.run(collect_all(inventory))
     save_cache(list(statuses), inventory.cache_path)
     display_containers_table(list(statuses))
 
+    if pdf_path:
+        path = generate_containers_pdf(list(statuses), pdf_path)
+        console.print(f"[green]PDF saved to:[/green] {path}")
+
 
 @cli.command()
+@_pdf_option
 @click.pass_context
-def services(ctx: click.Context) -> None:
+def services(ctx: click.Context, pdf_path: str | None) -> None:
     """List systemd services across all servers."""
     inventory = _load_inventory(ctx)
     statuses = asyncio.run(collect_all(inventory))
     save_cache(list(statuses), inventory.cache_path)
     display_services_table(list(statuses))
+
+    if pdf_path:
+        path = generate_services_pdf(list(statuses), pdf_path)
+        console.print(f"[green]PDF saved to:[/green] {path}")
 
 
 def _load_inventory(ctx: click.Context):

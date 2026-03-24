@@ -42,6 +42,9 @@ Dataclasses and enums: `HealthStatus` (healthy/unhealthy/degraded/unknown), `Ser
 ### Display (`display.py`)
 Rich-based terminal output. Color-coded tables for status, containers, services, and fleet summary.
 
+### PDF (`pdf.py`)
+Generates printable PDF reports using `fpdf2`. Mirrors the terminal table output with formatted tables, color-coded health indicators, and fleet summaries. Each command has a corresponding PDF generator function.
+
 ### Cache (`cache.py`)
 Persists last known state to a JSON file after each collection. Supports offline queries via `--cached` flag with staleness indicator.
 

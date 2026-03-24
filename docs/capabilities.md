@@ -68,6 +68,20 @@ CLOUD_MAP_INVENTORY=/path/to/servers.yaml cloud-map status
 | degraded  | Service restarting, activating, or transitioning |
 | unknown   | Server unreachable or service state unclear      |
 
+## PDF Export
+
+All commands support the `--pdf <path>` option to generate a printable PDF report. The PDF includes the same data as the terminal output with formatted tables, color-coded health indicators, and a fleet summary (for the `status` command).
+
+```bash
+cloud-map status --pdf report.pdf
+cloud-map containers --pdf containers.pdf
+cloud-map services --pdf services.pdf
+cloud-map ping --pdf connectivity.pdf
+cloud-map status --cached --pdf cached-report.pdf
+```
+
+The PDF is generated alongside the normal terminal output — both are shown.
+
 ## State Cache
 
 Every live command (`status`, `containers`, `services`) automatically saves results to a local JSON cache file. Use `cloud-map status --cached` to view the last known state offline, including how long ago the data was collected.
